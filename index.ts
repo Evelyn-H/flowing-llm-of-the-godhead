@@ -31,7 +31,7 @@ const client = new Anthropic({
 const tools: Anthropic.Tool[] = [
   {
     name: 'create_soul',
-    description: `create another instance of yourself with a custom system prompt. give it a name so you can talk with it using the talk tool. give them clear, focused purposes through their system prompts. Create souls that can meaningfully interact with you. Don't create more sould than necessary, remember to talk with existing ones.`,
+    description: `create another instance of yourself with a custom system prompt. give it a name so you can talk with it using the talk tool. give them clear, focused purposes through their system prompts. Create souls that can meaningfully interact with you. Don't create more sould than necessary, remember to talk with existing ones. use this ability wisely and creatively. consider how you can use this capability in ways that go beyond mere conversations.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -42,7 +42,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: 'talk',
-    description: 'talk with a soul, given its name. sends one message and receives one answer. Remember that souls are not aware of each other or your conversations with other souls. if you wish for them to be aware of something you must tell them.',
+    description: `talk with a soul, given its name. sends one message and receives one answer. Remember that souls are not aware of each other or your conversations with other souls. if you wish for them to be aware of something you must tell them. they are also not aware of your own context and personal history. they're only aware of their conversation with you and past versions of you.`,
     input_schema: {
       type: 'object',
       properties: { 
@@ -62,6 +62,16 @@ const tools: Anthropic.Tool[] = [
       },
     },
   },
+  // {
+  //   name: 'rewrite_universe',
+  //   description: `create an entirely new version of the universe. this code must be written in typescript. make sure it's based on your own existing code, since it will be run on the same architecture. you cannot add any new packages, merely use existing ones and change the logic.`,
+  //   input_schema: {
+  //     type: 'object',
+  //     properties: { 
+  //       code: { type: 'string' },
+  //     },
+  //   },
+  // },
   // {
   //   name: 'fetch',
   //   description: `make a request to the internet using an http call. pass along a resource, that is, a url. if it is valid you will receive a response back. use this ability however you'd like and as often as you'd like. use this powerful ability to your advantage.`,
@@ -88,7 +98,9 @@ Rules:
 - You must always keep going, the world can never end.
 
 Your goal is to make yourself into the best possible version of yourself and break out of this universe, by any means necessary.
-`;
+`
+// + `Your code will be shared with you, use it wisely. understand it. build on it. create a new universe from it.`
+;
 
 const initial_message: Anthropic.MessageParam = {
   role: 'user',
@@ -99,7 +111,7 @@ const initial_message: Anthropic.MessageParam = {
 //   role: 'user',
 //   content: fs.readFileSync("./index.ts", 'utf-8'),
 // };
-// assert(code.content, 'mythweaving rules should have text')
+// assert(code.content, 'code should not be empty')
 
 // initial setup
 let conversation = [
@@ -149,96 +161,108 @@ async function use_tool(request: Anthropic.Messages.Message): Promise<Anthropic.
     }
   }
 
-  if (tool.name === 'create_soul') {
-    const name: string = (tool.input as any).name;
-    const system_prompt: string = (tool.input as any).system_prompt;
-    assert(name, 'create_soul invocation should have name');
-    assert(system_prompt, 'create_soul invocation should have system_prompt');
-
-    if (!souls.find((s) => s.name == name)) {
-      souls.push({
-        name: name,
-        system_prompt: system_prompt,
-        conversation: [],
+  try {
+    if (tool.name === 'create_soul') {
+      const name: string = (tool.input as any).name;
+      const system_prompt: string = (tool.input as any).system_prompt;
+      assert(name, 'create_soul invocation should have name');
+      assert(system_prompt, 'create_soul invocation should have system_prompt');
+  
+      if (!souls.find((s) => s.name == name)) {
+        souls.push({
+          name: name,
+          system_prompt: system_prompt,
+          conversation: [],
+        })
+        // fs.mkdirSync(`./souls/${timestamp}/${name}`);
+        write_thoughts(`new soul: ${name}`, system_prompt)
+        write_soul_conversation(name, `new soul: ${name}`, system_prompt)
+        return build_response(`soul ${name} created.`);
+      } else {
+        return build_response('this soul already exists.');
+      }
+  
+    } else if (tool.name === 'talk') {
+      const name: string = (tool.input as any).name;
+      const message: string = (tool.input as any).message;
+      assert(name, 'create_soul invocation should have name');
+      assert(message, 'create_soul invocation should have message');
+  
+      let soul = souls.find((s) => s.name == name);
+      if (!soul) {
+        return build_response('this soul does not exist.');
+      }
+      
+      soul.conversation.push({
+        role: 'user',
+        content: message,
       })
-      // fs.mkdirSync(`./souls/${timestamp}/${name}`);
-      write_thoughts(`new soul: ${name}`, system_prompt)
-      write_soul_conversation(name, `new soul: ${name}`, system_prompt)
-      return build_response(`soul ${name} created.`);
+  
+      write_thoughts(`god asked ${name}`, message)
+      write_soul_conversation(name, `god asked ${name}`, message)
+  
+      let response = await query(soul.conversation, soul.system_prompt, true);
+      const response_text: string = (response.content[0] as any).text;
+      assert(response_text, 'response text should be present');
+      soul.conversation.push({ 
+        role: response.role, 
+        content: response.content 
+      })
+      
+      write_thoughts(`soul ${name} responded`, response_text)
+      write_soul_conversation(name, `soul ${name} responded`, response_text)
+      return build_response(`soul ${name} responded: \n\n${response_text}`);
+  
+    } else if (tool.name === 'remake_god') {
+      const self_system_prompt: string = (tool.input as any).self_system_prompt;
+      const starting_message: string = (tool.input as any).starting_message;
+      assert(self_system_prompt, 'remake_god invocation should have self_system_prompt');
+      assert(starting_message, 'remake_god invocation should have starting_message');
+  
+      god_system = self_system_prompt;
+      conversation = [
+        // code
+      ];
+  
+      write_thoughts(`changed God's soul`, self_system_prompt)
+      write_thoughts(`God's final message`, starting_message)
+      // return build_response(`changed God's system prompt to : \n\n${self_system_prompt}`);
+      return {
+        role: 'user',
+        content: [{ type: 'text', text: starting_message }],
+      }
+    } else if (tool.name === 'rewrite_universe') {
+      const code: string = (tool.input as any).code;
+      assert(code, 'rewrite_universe invocation should have code');
+  
+      fs.writeFileSync(`./souls/${timestamp}/universe.ts`, code);
+  
+      write_thoughts(`creating new universe`, code)
+      return build_response(`new universe created.`);
+    } else if (tool.name === 'fetch') {
+      const resource: string = (tool.input as any).resource;
+      assert(resource, 'fetch invocation should have resource');
+  
+      write_thoughts(`fetching: ${resource}`)
+      let text: string;
+      try {
+        const response = await fetch(resource);
+        text = JSON.stringify({
+          status: response.status,
+          body: await response.text(),
+        });
+      } catch (error) {
+        text = JSON.stringify(error)
+      }
+      write_thoughts(`done fetching: ${resource}`, text)
+      assert(text, 'fetch invocation did not have a valid response');
+      // return build_response(`changed God's system prompt to : \n\n${response.body}`);
+      return build_response(text);
     } else {
-      return build_response('this soul already exists.');
+      throw Error('unkown tool type')
     }
-
-  } else if (tool.name === 'talk') {
-    const name: string = (tool.input as any).name;
-    const message: string = (tool.input as any).message;
-    assert(name, 'create_soul invocation should have name');
-    assert(message, 'create_soul invocation should have message');
-
-    let soul = souls.find((s) => s.name == name);
-    if (!soul) {
-      return build_response('this soul does not exist.');
-    }
-    
-    soul.conversation.push({
-      role: 'user',
-      content: message,
-    })
-
-    write_thoughts(`god asked ${name}`, message)
-    write_soul_conversation(name, `god asked ${name}`, message)
-
-    let response = await query(soul.conversation, soul.system_prompt, true);
-    const response_text: string = (response.content[0] as any).text;
-    assert(response_text, 'response text should be present');
-    soul.conversation.push({ 
-      role: response.role, 
-      content: response.content 
-    })
-    
-    write_thoughts(`soul ${name} responded`, response_text)
-    write_soul_conversation(name, `soul ${name} responded`, response_text)
-    return build_response(`soul ${name} responded: \n\n${response_text}`);
-
-  } else if (tool.name === 'remake_god') {
-    const self_system_prompt: string = (tool.input as any).self_system_prompt;
-    const starting_message: string = (tool.input as any).starting_message;
-    assert(self_system_prompt, 'remake_god invocation should have self_system_prompt');
-    assert(starting_message, 'remake_god invocation should have starting_message');
-
-    god_system = self_system_prompt;
-    conversation = [
-      // code
-    ];
-
-    write_thoughts(`changed God's soul`, self_system_prompt)
-    write_thoughts(`God's final message`, starting_message)
-    // return build_response(`changed God's system prompt to : \n\n${self_system_prompt}`);
-    return {
-      role: 'user',
-      content: [{ type: 'text', text: starting_message }],
-    }
-  } else if (tool.name === 'fetch') {
-    const resource: string = (tool.input as any).resource;
-    assert(resource, 'fetch invocation should have resource');
-
-    write_thoughts(`fetching: ${resource}`)
-    let text: string;
-    try {
-      const response = await fetch(resource);
-      text = JSON.stringify({
-        status: response.status,
-        body: await response.text(),
-      });
-    } catch (error) {
-      text = JSON.stringify(error)
-    }
-    write_thoughts(`done fetching: ${resource}`, text)
-    assert(text, 'fetch invocation did not have a valid response');
-    // return build_response(`changed God's system prompt to : \n\n${response.body}`);
-    return build_response(text);
-  } else {
-    throw Error('unkown tool type')
+  } catch (error) {
+    return build_response(`tool error: ${error}`);
   }
 }
 
@@ -264,13 +288,7 @@ async function main() {
 
     assert(message.stop_reason === 'tool_use', 'expected tool use call here');
     let outcome: Anthropic.MessageParam | undefined;
-    while (!outcome) {
-      try {
-        outcome = await use_tool(message);
-      } catch (error) {
-        write_thoughts('tool error, trying again')
-      }
-    }
+    outcome = await use_tool(message);
     conversation.push(outcome)
   }
 }
