@@ -1,0 +1,13 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "tsx ./index.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.1"
+  }
+}
